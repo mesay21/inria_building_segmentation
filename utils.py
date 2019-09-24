@@ -87,9 +87,10 @@ def batch_norm(x, state, var_scope='bn'):
     with tf.variable_scope(var_scope):
         # create beta and gamma variables
         x_shape = x.get_shape().as_list()
-        beta = tf.get_variable('beta', shape=x_shape[-1],
+        var_shape = [1]*(len(x_shape)-1) + [x[-1]]
+        beta = tf.get_variable('beta', shape=var_shape,
                                initializer=tf.zeros_initializer, trainable=True)
-        gamma = tf.get_variable('gamma', shape=x_shape[-1],
+        gamma = tf.get_variable('gamma', shape=var_shape,
                                 initializer=tf.ones_initializer, trainable=True)
         # calculate mini-batch mean and variance
         batch_mu, batch_var = tf.nn.moments(x, axis=(0, 1, 2), keep_dims=True)
@@ -110,3 +111,35 @@ def batch_norm(x, state, var_scope='bn'):
         x_norm = tf.nn.batch_normalization(x, mean, var, beta, gamma,
                                            variance_epsilon=1e-5)
     return x_norm
+
+
+def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
+    """
+    Create a resnet block
+
+    Args:
+        x: input feature map of size [Batch, Height, Width, In_Channel]
+        num_kernels: number of filters (integer)
+        bn_state: batch normalization state (boolean)
+        stride: kernel step (integer, only applied to the first convolution)
+        var_scope: scope of the variables created
+
+    Returns:
+        out: feature map with size [Batch, Height, Width, Out_Channel]
+    """
+    with tf.variable_scope(var_scope):
+        conv_one = conv2d(x, num_kernels, 3, stride=stride,
+                          var_scope='conv_one')
+        bn_one = batch_norm(conv_one, bn_state, var_scope='bn_one')
+        lrelu_one = tf.nn.leaky_relu(bn_one)
+        conv_two = conv2d(lrelu_one, num_kernels, 3, var_scope='conv_two')
+        bn_two = batch_norm(conv_two, bn_state, var_scope='bn_two')
+        lrelu_two = tf.nn.leaky_relu(bn_two)
+        # add shortcut
+        if stride > 1:
+            x_short_cut = conv2d(
+                x, num_kernels, 1, stride=stride, var_scope='short_cut')
+            out = tf.add(x_short_cut, lrelu_two)
+        else:
+            out = tf.add(x, lrelu_two)
+        return out
