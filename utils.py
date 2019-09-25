@@ -1,3 +1,4 @@
+import glob
 import tensorflow as tf
 
 
@@ -172,19 +173,24 @@ def upsample(x, size=2):
     return out
 
 
-def iterator(x, y, repeat=False, batch_size=None):
+def iterator(data_path, repeat=False, batch_size=None):
     """
     Create dataset iterator
     Args:
-        x: placeholder for training images
-        y: palceholder for ground truth data
+        data_path: image path (string)
         repeat: repeat the dataset (boolean)
         batch_size: number of mini-batch samples
     Returns:
-        iterator: initializable iterator
+        iterator: iterator initializer
         _next: get next batch
     """
+    # convert lists to string tensors
+    x_path = glob.glob(data_path + 'images/*.png')
+    y_path = glob.glob(data_path + 'gt/*.png')
+    x = tf.constant(x_path)
+    y = tf.constant(y_path)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
+    dataset = dataset.map(map_function)
     if repeat:
         dataset = dataset.repeat()
     if not batch_size is None:
@@ -192,4 +198,25 @@ def iterator(x, y, repeat=False, batch_size=None):
     iterator = tf.data.make_initializable_iterator(dataset)
     _next = iterator.next()
 
-    return iterator, _next
+    return iterator.initializor, _next
+
+
+def map_function(image_path, label_path):
+    """
+    Create transformation function
+    Args:
+        image_path: image path (string tensor)
+        label_path: image path (string tensor)
+    Returns:
+        images: transformed images
+        labels: arrays of segmentation map
+    """
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_png(image)
+    image = tf.image.per_image_standardization(image)
+
+    label = tf.io.read_file(label_path)
+    label = tf.image.decode_png(label)
+    label = tf.one_hot(label, depth=2)
+
+    return image, label
