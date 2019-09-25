@@ -134,18 +134,16 @@ def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
         lrelu_one = lrelu(bn_one)
         conv_two = conv2d(lrelu_one, num_kernels, 3, var_scope='conv_two')
         bn_two = batch_norm(conv_two, bn_state, var_scope='bn_two')
-        lrelu_two = lrelu(bn_two)
         # add shortcut
         if stride > 1:
             x_short_cut = conv2d(
                 x, num_kernels, 1, stride=stride, var_scope='short_cut')
             bn_short_cut = batch_norm(
                 x_short_cut, bn_state, var_scope='bn_short_cut')
-            lrelu_short_cut = lrelu(bn_short_cut)
-            out = tf.add(lrelu_short_cut, lrelu_two)
+            out = tf.add(bn_short_cut, bn_two)
         else:
-            out = tf.add(x, lrelu_two)
-        return out
+            out = tf.add(x, bn_two)
+        return lrelu(out)
 
 
 def lrelu(x):
