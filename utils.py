@@ -46,7 +46,7 @@ def fc_layer(x, h_units, var_scope='fc_layer'):
     return out
 
 
-def conv2d(x, num_kernels, kernel_size, stride=1, var_scope='conv', add_bias=True):
+def conv2d(x, num_kernels, kernel_size, stride=1, var_scope='conv', add_bias=False):
     """
     Create a 2D convolution layer
     Args:
@@ -131,18 +131,44 @@ def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
         conv_one = conv2d(x, num_kernels, 3, stride=stride,
                           var_scope='conv_one')
         bn_one = batch_norm(conv_one, bn_state, var_scope='bn_one')
-        lrelu_one = tf.nn.leaky_relu(bn_one)
+        lrelu_one = lrelu(bn_one)
         conv_two = conv2d(lrelu_one, num_kernels, 3, var_scope='conv_two')
         bn_two = batch_norm(conv_two, bn_state, var_scope='bn_two')
-        lrelu_two = tf.nn.leaky_relu(bn_two)
+        lrelu_two = lrelu(bn_two)
         # add shortcut
         if stride > 1:
             x_short_cut = conv2d(
                 x, num_kernels, 1, stride=stride, var_scope='short_cut')
             bn_short_cut = batch_norm(
                 x_short_cut, bn_state, var_scope='bn_short_cut')
-            lrelu_short_cut = tf.nn.leaky_relu(bn_short_cut)
+            lrelu_short_cut = lrelu(bn_short_cut)
             out = tf.add(lrelu_short_cut, lrelu_two)
         else:
             out = tf.add(x, lrelu_two)
         return out
+
+
+def lrelu(x):
+    """
+    Create a leaky relu layer
+    Args:
+        x: input array
+    Returns:
+        apply leaky relu activation to the input
+    """
+    return tf.nn.leaky_relu(x)
+
+
+def upsample(x, size=2):
+    """
+    Create upsampling layer
+    Args:
+        x: input array of size [Batch, Height, Width, Channels]
+    Returns:
+        out: bicubic upsampled fature map of size
+            [Batch, size*Height, size*Width, Channels]
+    """
+    x_shape = x.get_shape().as_list()
+    im_size = size * x_shape[1:3]  # new height and width values
+    out = tf.image.resize_bicubic(x, im_size)
+    return out
