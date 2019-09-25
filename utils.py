@@ -139,7 +139,10 @@ def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
         if stride > 1:
             x_short_cut = conv2d(
                 x, num_kernels, 1, stride=stride, var_scope='short_cut')
-            out = tf.add(x_short_cut, lrelu_two)
+            bn_short_cut = batch_norm(
+                x_short_cut, bn_state, var_scope='bn_short_cut')
+            lrelu_short_cut = tf.nn.leaky_relu(bn_short_cut)
+            out = tf.add(lrelu_short_cut, lrelu_two)
         else:
             out = tf.add(x, lrelu_two)
         return out
