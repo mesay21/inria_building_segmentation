@@ -170,3 +170,26 @@ def upsample(x, size=2):
     im_size = size * x_shape[1:3]  # new height and width values
     out = tf.image.resize_bicubic(x, im_size)
     return out
+
+
+def iterator(x, y, repeat=False, batch_size=None):
+    """
+    Create dataset iterator
+    Args:
+        x: placeholder for training images
+        y: palceholder for ground truth data
+        repeat: repeat the dataset (boolean)
+        batch_size: number of mini-batch samples
+    Returns:
+        iterator: initializable iterator
+        _next: get next batch
+    """
+    dataset = tf.data.Dataset.from_tensor_slices((x, y))
+    if repeat:
+        dataset = dataset.repeat()
+    if not batch_size is None:
+        dataset = dataset.batch(batch_size)
+    iterator = tf.data.make_initializable_iterator(dataset)
+    _next = iterator.next()
+
+    return iterator, _next
