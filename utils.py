@@ -93,7 +93,7 @@ def batch_norm(x, state, var_scope='bn'):
         gamma = tf.get_variable('gamma', shape=var_shape,
                                 initializer=tf.ones_initializer, trainable=True)
         # calculate mini-batch mean and variance
-        batch_mu, batch_var = tf.nn.moments(x, axis=(0, 1, 2), keep_dims=True)
+        batch_mu, batch_var = tf.nn.moments(x, axes=(0, 1, 2), keep_dims=True)
         # create exponential moving average to update mean and variance stat
         moving_avrg = tf.train.ExponentialMovingAverage(decay=0.99)
 
