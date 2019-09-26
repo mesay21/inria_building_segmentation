@@ -209,7 +209,7 @@ def test_iterator(data_path):
         _next: get next batch
     """
     x_path = glob.glob(data_path + 'images/*.png')
-    y_path = [p.replace('images', 'gt') for p in x_path]
+    y_path = [p.replace('images', 'pred') for p in x_path]
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
