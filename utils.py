@@ -168,7 +168,8 @@ def upsample(x, size=2):
         out: bicubic upsampled fature map of size
             [Batch, size*Height, size*Width, Channels]
     """
-    im_size = x.shape[1:3] * tf.constant(size)  # new height and width values
+    im_size = tf.shape(x)[1:3] * \
+        tf.constant(size)  # new height and width values
     out = tf.image.resize(x, im_size)
     return out
 
