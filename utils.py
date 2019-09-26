@@ -88,11 +88,11 @@ def batch_norm(x, state, var_scope='bn'):
     with tf.variable_scope(var_scope):
         # create beta and gamma variables
         x_shape = x.get_shape().as_list()
-        var_shape = [1]*(len(x_shape)-1) + [x[-1]]
+        var_shape = [1]*(len(x_shape)-1) + [x_shape[-1]]
         beta = tf.get_variable('beta', shape=var_shape,
-                               initializer=tf.zeros_initializer, trainable=True)
+                               initializer=tf.constant_initializer(0.0), trainable=True)
         gamma = tf.get_variable('gamma', shape=var_shape,
-                                initializer=tf.ones_initializer, trainable=True)
+                                initializer=tf.ones_initializer(), trainable=True)
         # calculate mini-batch mean and variance
         batch_mu, batch_var = tf.nn.moments(x, axes=(0, 1, 2), keep_dims=True)
         # create exponential moving average to update mean and variance stat
@@ -128,6 +128,7 @@ def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
     Returns:
         out: feature map with size [Batch, Height, Width, Out_Channel]
     """
+    x_shape = x.get_shape().as_list()
     with tf.variable_scope(var_scope):
         conv_one = conv2d(x, num_kernels, 3, stride=stride,
                           var_scope='conv_one')
@@ -136,7 +137,7 @@ def resnet_unit(x, num_kernels, bn_state, stride=1, var_scope='resnet'):
         conv_two = conv2d(lrelu_one, num_kernels, 3, var_scope='conv_two')
         bn_two = batch_norm(conv_two, bn_state, var_scope='bn_two')
         # add shortcut
-        if stride > 1:
+        if (stride > 1 or x_shape[-1] != num_kernels):
             x_short_cut = conv2d(
                 x, num_kernels, 1, stride=stride, var_scope='short_cut')
             bn_short_cut = batch_norm(
@@ -167,9 +168,8 @@ def upsample(x, size=2):
         out: bicubic upsampled fature map of size
             [Batch, size*Height, size*Width, Channels]
     """
-    x_shape = x.get_shape().as_list()
-    im_size = size * x_shape[1:3]  # new height and width values
-    out = tf.image.resize_bicubic(x, im_size)
+    im_size = x.shape[1:3] * tf.constant(size)  # new height and width values
+    out = tf.image.resize(x, im_size)
     return out
 
 
@@ -187,18 +187,19 @@ def iterator(data_path, repeat=False, batch_size=None):
     # convert lists to string tensors
     x_path = glob.glob(data_path + 'images/*.png')
     y_path = glob.glob(data_path + 'gt/*.png')
-    x = tf.constant(x_path)
-    y = tf.constant(y_path)
+    x = tf.constant(x_path, dtype=tf.string)
+    y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
     dataset = dataset.map(map_function)
     if repeat:
         dataset = dataset.repeat()
     if not batch_size is None:
         dataset = dataset.batch(batch_size)
-    iterator = tf.data.make_initializable_iterator(dataset)
-    _next = iterator.next()
-
-    return iterator.initializor, _next
+    iterator = tf.data.Iterator.from_structure(
+        dataset.output_types, dataset.output_shapes)
+    _next = iterator.get_next()
+    iterator_init = iterator.make_initializer(dataset)
+    return iterator_init, _next
 
 
 def map_function(image_path, label_path):
@@ -213,10 +214,26 @@ def map_function(image_path, label_path):
     """
     image = tf.io.read_file(image_path)
     image = tf.image.decode_png(image)
-    image = tf.image.per_image_standardization(image)
+    image = tf.div(tf.cast(image, tf.float32), 255.)
 
     label = tf.io.read_file(label_path)
     label = tf.image.decode_png(label)
-    label = tf.one_hot(label, depth=2)
+    label = tf.squeeze(tf.one_hot(
+        tf.div(label, 255), depth=2, dtype=tf.float32))
 
     return image, label
+
+
+def average_loss(loss):
+    """
+    Aggregate mini-batch loss statistics and compute average loss
+    """
+    loss_sum = tf.Variable(initial_value=tf.zeros_like(loss), trainable=False)
+    num_batches = tf.Variable(0., trainable=False, dtype=tf.float32)
+    accumulate_loss = tf.assign_add(loss_sum, loss)
+    accumulate_batch = tf.assign_add(num_batches, 1.)
+    ave_loss = loss_sum/num_batches
+    update_op = tf.group([accumulate_loss, accumulate_batch])
+    reset_op = tf.variables_initializer([loss_sum, num_batches])
+
+    return ave_loss, update_op, reset_op
