@@ -176,7 +176,7 @@ def upsample(x, size=2):
 
 def iterator(data_path, batch_size=64):
     """
-    Create dataset iterator
+    Create dataset iterator only for training and validation set
     Args:
         data_path: image path (string)
         batch_size: number of mini-batch samples
@@ -190,8 +190,30 @@ def iterator(data_path, batch_size=64):
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
-    dataset = dataset.map(map_function)
+    dataset = dataset.map(map_function, num_parallel_calls=4)
     dataset = dataset.batch(batch_size)
+    iterator = tf.data.Iterator.from_structure(
+        dataset.output_types, dataset.output_shapes)
+    _next = iterator.get_next()
+    iterator_init = iterator.make_initializer(dataset)
+    return iterator_init, _next
+
+
+def test_iterator(data_path):
+    """
+    Create dataset iterator only for test set
+    Args:
+        data_path: image path (string)
+    Returns:
+        iterator: iterator initializer
+        _next: get next batch
+    """
+    x_path = glob.glob(data_path + 'images/*.png')
+    y_path = [p.replace('images', 'gt') for p in x_path]
+    x = tf.constant(x_path, dtype=tf.string)
+    y = tf.constant(y_path, dtype=tf.string)
+    dataset = tf.data.Dataset.from_tensor_slices((x, y))
+    dataset = dataset.map(test_map_function)
     iterator = tf.data.Iterator.from_structure(
         dataset.output_types, dataset.output_shapes)
     _next = iterator.get_next()
@@ -219,6 +241,24 @@ def map_function(image_path, label_path):
         tf.div(label, 255), depth=2, dtype=tf.float32))
 
     return image, label
+
+
+def test_map_function(image_path, pred_path):
+    """
+    Create transform function for the test set
+    Args:
+        image_path: image path (string tensor)
+        pred_path: prediction map path (string tensor)
+    Returns:
+        images: transformed images
+        pred_path: string path which is later used to save prediction results
+    """
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_png(image)
+    image = tf.div(tf.cast(image, tf.float32), 255.)
+    # Add batch axis
+    image = tf.expand_dims(image, axis=0)
+    return image, pred_path
 
 
 def average_loss(loss):
