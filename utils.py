@@ -186,7 +186,7 @@ def iterator(data_path, repeat=False, batch_size=None):
     """
     # convert lists to string tensors
     x_path = glob.glob(data_path + 'images/*.png')
-    y_path = glob.glob(data_path + 'gt/*.png')
+    y_path = [p.replace('images', 'gt') for p in x_path]
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
