@@ -174,12 +174,11 @@ def upsample(x, size=2):
     return out
 
 
-def iterator(data_path, repeat=False, batch_size=None):
+def iterator(data_path, batch_size=64):
     """
     Create dataset iterator
     Args:
         data_path: image path (string)
-        repeat: repeat the dataset (boolean)
         batch_size: number of mini-batch samples
     Returns:
         iterator: iterator initializer
@@ -192,10 +191,7 @@ def iterator(data_path, repeat=False, batch_size=None):
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
     dataset = dataset.map(map_function)
-    if repeat:
-        dataset = dataset.repeat()
-    if not batch_size is None:
-        dataset = dataset.batch(batch_size)
+    dataset = dataset.batch(batch_size)
     iterator = tf.data.Iterator.from_structure(
         dataset.output_types, dataset.output_shapes)
     _next = iterator.get_next()
