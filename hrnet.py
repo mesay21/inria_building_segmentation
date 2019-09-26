@@ -68,5 +68,6 @@ class HRNET:
         print('Multi resolution concat shape: ', multi_res_concat.shape)
 
         output_conv = conv2d(
-            multi_res_concat, self.num_classes, 3, var_scope='output_conv')
+            multi_res_concat, self.num_classes, self.kernel_size,
+            var_scope='output_conv')
         return output_conv
