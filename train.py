@@ -1,20 +1,22 @@
 import os
 import glob
+import warnings
 import tensorflow as tf
 from hrnet import HRNET
 from utils import iterator, average_loss
+warnings.filterwarnings('ignore')
 
 KERNEL_SIZE = 3
 BATCH_SIZE = 64
 NUM_CLASSES = 2
-NUM_KERNELS = 64
+NUM_KERNELS = 8
 LR_RATE = 1e-3
-HEIGHT = 256
-WIDTH = 256
+HEIGHT = 64
+WIDTH = 64
 CHANNELS = 3
 SAVE_PATH = './model'
-DATA_PATH = './dataset/AerialImageDataset_patch/'
-EPOCHS = 10000
+DATA_PATH = '../dataset/'
+EPOCHS = 100
 
 
 def train():
@@ -26,9 +28,9 @@ def train():
     val_file = DATA_PATH + '/validation/'
     with tf.name_scope('place_holders'):
         x = tf.placeholder(tf.float32, shape=(
-            None, HEIGHT, WIDTH, CHANNELS), name='input_image')
+            None, None, None, CHANNELS), name='input_image')
         y = tf.placeholder(tf.float32, shape=(
-            None, HEIGHT, WIDTH, NUM_CLASSES), name='ground_truth')
+            None, None, None, NUM_CLASSES), name='ground_truth')
         is_train = tf.placeholder(tf.bool, shape=(), name='network_state')
 
     with tf.name_scope('network'):
@@ -69,8 +71,8 @@ def train():
         saver = tf.train.Saver()
 
     with tf.name_scope('data_pipeline'):
-        train_iter, train_next = iterator(train_file)
-        val_iter, val_next = iterator(val_file)
+        train_iter, train_next = iterator(train_file, batch_size=BATCH_SIZE)
+        val_iter, val_next = iterator(val_file, batch_size=BATCH_SIZE)
 
     with tf.name_scope('miscellaneous'):
         gpu_config = tf.ConfigProto()
@@ -93,7 +95,7 @@ def train():
                              x: batch_x, y: batch_y, is_train: True})
                 except tf.errors.OutOfRangeError:
                     break
-            if i % 10 == 1 or i == (EPOCHS - 1):
+            if i % 2 == 0 or i == (EPOCHS - 1):
                 sess.run([val_iter, loss_reset_op, mean_iou_vars])
                 while True:
                     try:
