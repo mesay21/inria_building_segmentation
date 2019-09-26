@@ -127,6 +127,7 @@ def train():
                 imsave(str(save_path), np.squeeze(seg_map.astype(np.float)))
             except tf.errors.OutOfRangeError:
                 print('Finished test evaluation')
+                break
 
 
 if __name__ == "__main__":
