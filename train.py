@@ -124,7 +124,8 @@ def train():
                 seg_map = sess.run(
                     pred, feed_dict={x: test_x, is_train: False})
                 # save segmentation map
-                imsave(str(save_path), np.squeeze(seg_map.astype(np.float)))
+                imsave(save_path.decode('utf-8'), np.squeeze(
+                    seg_map.astype(np.uint8)), check_contrast=False)
             except tf.errors.OutOfRangeError:
                 print('Finished test evaluation')
                 break
