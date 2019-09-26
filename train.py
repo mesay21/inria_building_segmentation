@@ -2,8 +2,11 @@ import os
 import glob
 import warnings
 import tensorflow as tf
+import numpy as np
 from hrnet import HRNET
-from utils import iterator, average_loss
+from utils import iterator, average_loss, test_iterator
+from skimage.io import imsave
+
 warnings.filterwarnings('ignore')
 
 KERNEL_SIZE = 3
@@ -11,8 +14,6 @@ BATCH_SIZE = 64
 NUM_CLASSES = 2
 NUM_KERNELS = 8
 LR_RATE = 1e-3
-HEIGHT = 64
-WIDTH = 64
 CHANNELS = 3
 SAVE_PATH = './model'
 DATA_PATH = '../dataset/'
@@ -26,6 +27,9 @@ def train():
     """
     train_file = DATA_PATH + '/train/'
     val_file = DATA_PATH + '/validation/'
+    test_file = DATA_PATH + '/test/'
+    if not os.path.isdir(test_file + 'pred'):
+        os.makedirs(test_file + 'pred')
     with tf.name_scope('place_holders'):
         x = tf.placeholder(tf.float32, shape=(
             None, None, None, CHANNELS), name='input_image')
@@ -36,6 +40,7 @@ def train():
     with tf.name_scope('network'):
         model = HRNET(x, NUM_KERNELS, KERNEL_SIZE, is_train, NUM_CLASSES)
         logits = model.network()
+        # generate segmentation map
         pred = tf.argmax(tf.nn.softmax(
             logits, axis=-1), axis=-1, output_type=tf.int32)
         print('Output shape: ', logits.shape)
@@ -73,6 +78,7 @@ def train():
     with tf.name_scope('data_pipeline'):
         train_iter, train_next = iterator(train_file, batch_size=BATCH_SIZE)
         val_iter, val_next = iterator(val_file, batch_size=BATCH_SIZE)
+        test_iter, test_next = test_iterator(test_file)
 
     with tf.name_scope('miscellaneous'):
         gpu_config = tf.ConfigProto()
@@ -85,7 +91,7 @@ def train():
     with tf.Session(config=gpu_config) as sess:
         sess.run(init_vars)
         summ_writer.add_graph(sess.graph)
-        print('Training started')
+        print('Training started....')
         for i in range(EPOCHS):
             sess.run(train_iter)
             while True:
@@ -110,6 +116,20 @@ def train():
                 print('Iteration: {} Mean IoU: {} Loss: {}'.format(
                     i, val_iou, val_loss))
         saver.save(sess, checkpoint_dir + 'hrnet')
+        print('Finished training.....')
+        ############################################
+        # GENERATE PREDICTION MAPS FOR TEST IMAGES##
+        ############################################
+        sess.run(test_iter)
+        while True:
+            try:
+                test_x, save_path = sess.run(test_next)
+                seg_map = sess.run(
+                    pred, feed_dict={x: test_x, is_train: False})
+                # save segmentation map
+                imsave(str(save_path), np.squeeze(seg_map.astype(np.float)))
+            except tf.errors.OutOfRangeError:
+                print('Finished test evaluation')
 
 
 if __name__ == "__main__":
