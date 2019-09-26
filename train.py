@@ -1,13 +1,10 @@
 import os
 import glob
-import warnings
 import tensorflow as tf
 import numpy as np
 from hrnet import HRNET
 from utils import iterator, average_loss, test_iterator
 from skimage.io import imsave
-
-warnings.filterwarnings('ignore')
 
 KERNEL_SIZE = 3
 BATCH_SIZE = 64
