@@ -252,11 +252,11 @@ def map_function(image_path, label_path, crop_height, crop_width, num_batches=64
     return image, label
 
 
-def test_map_function(image_path, pred_path):
+def test_map_function(image_path, pred_path, num_splits):
     """
     Create transform function for the test set
     Args:
-        image_path: image path (string tensor)
+        image_path: image (string tensor)
         pred_path: prediction map path (string tensor)
     Returns:
         images: transformed images
@@ -265,8 +265,8 @@ def test_map_function(image_path, pred_path):
     image = tf.io.read_file(image_path)
     image = tf.image.decode_png(image)
     image = tf.div(tf.cast(image, tf.float32), 255.)
-    # Add batch axis
-    image = tf.expand_dims(image, axis=0)
+    # Split the image
+    image = tf.split(image, num_splits, axis=0)
     return image, pred_path
 
 
