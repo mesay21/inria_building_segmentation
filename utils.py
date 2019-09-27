@@ -241,12 +241,14 @@ def map_function(image_path, label_path, crop_height, crop_width, num_batches=64
         tf.div(label, 255), depth=2, dtype=tf.float32))
     # concatinate image  and labels to ensure matching during cropping
     image_label = tf.concat((image, label), axis=-1)
-    shape = image_label.get_shape().as_list()
-    size = [crop_height, crop_width, shape[-1]]
+    image_channel = image.get_shape().as_list()[-1]
+    label_channel = label.get_shape().as_list()[-1]
+    size = [crop_height, crop_width, (image_channel + label_channel)]
     def get_patch(x): return tf.stack(
         [tf.image.random_crop(x, size) for _ in range(num_batches)], axis=0)
     batch = get_patch(image_label)
-    image, label = batch[:, :, :, :3], batch[:, :, :, 3:]
+    # split the image from the labels
+    image, label = tf.split(batch, [image_channel, label_channel], axis=-1)
     return image, label
 
 
