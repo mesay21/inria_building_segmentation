@@ -221,7 +221,7 @@ def test_iterator(data_path):
     return iterator_init, _next
 
 
-def map_function(image_path, label_path):
+def map_function(image_path, label_path, crop_height, crop_width, num_batches=64):
     """
     Create transformation function
     Args:
@@ -239,7 +239,14 @@ def map_function(image_path, label_path):
     label = tf.image.decode_png(label)
     label = tf.squeeze(tf.one_hot(
         tf.div(label, 255), depth=2, dtype=tf.float32))
-
+    # concatinate image  and labels to ensure matching during cropping
+    image_label = tf.concat((image, label), axis=-1)
+    shape = image_label.get_shape().as_list()
+    size = [crop_height, crop_width, shape[-1]]
+    def get_patch(x): return tf.stack(
+        [tf.image.random_crop(x, size) for _ in range(num_batches)], axis=0)
+    batch = get_patch(image_label)
+    image, label = batch[:, :, :, :3], batch[:, :, :, 3:]
     return image, label
 
 
