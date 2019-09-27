@@ -1,7 +1,12 @@
 import glob
 import tensorflow as tf
 import numpy as np
-from skimage.io import imsave
+from PIL import Image
+
+CROP_HEIGHT = 64
+CROP_WIDTH = 64
+BATCHES = 64
+SPLITS = 100
 
 
 def get_weight(shape):
@@ -192,6 +197,17 @@ def iterator(data_path, batch_size=64):
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
+
+    def read_images_labels(image_path, label_path):
+        image = Image.open(image_path)
+        label = Image.open(label_path)
+        return image, label
+
+    dataset = dataset.map(
+        lambda file_name, label_name: tuple(tf.py_func(read_images_labels,
+                                                       [file_name, label_name], [tf.uint8, tf.uint8])),
+        num_parallel_calls=4)
+
     dataset = dataset.map(map_function, num_parallel_calls=4)
     dataset = dataset.batch(batch_size)
     iterator = tf.data.Iterator.from_structure(
@@ -215,6 +231,16 @@ def test_iterator(data_path):
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
+
+    def read_image_label(image_name, file_name):
+        image = Image.open(image_name)
+        return image, file_name
+
+    dataset = dataset.map(
+        lambda file_name, label_name: tuple(tf.py_func(read_image_label,
+                                                       [file_name, label_name], [tf.uint8, tf.string])),
+        num_parallel_calls=4)
+
     dataset = dataset.map(test_map_function)
     iterator = tf.data.Iterator.from_structure(
         dataset.output_types, dataset.output_shapes)
@@ -223,38 +249,33 @@ def test_iterator(data_path):
     return iterator_init, _next
 
 
-def map_function(image_path, label_path, crop_height, crop_width, num_batches=64):
+def map_function(image, label):
     """
     Create transformation function
     Args:
-        image_path: image path (string tensor)
-        label_path: image path (string tensor)
+        image: 3D image (tensor)
+        label: 2D image (tensor)
     Returns:
         images: transformed images
         labels: arrays of segmentation map
     """
-    image = tf.io.read_file(image_path)
-    image = tf.image.decode_png(image)
     image = tf.div(tf.cast(image, tf.float32), 255.)
-
-    label = tf.io.read_file(label_path)
-    label = tf.image.decode_png(label)
     label = tf.squeeze(tf.one_hot(
         tf.div(label, 255), depth=2, dtype=tf.float32))
     # concatinate image  and labels to ensure matching during cropping
     image_label = tf.concat((image, label), axis=-1)
     image_channel = image.get_shape().as_list()[-1]
     label_channel = label.get_shape().as_list()[-1]
-    size = [crop_height, crop_width, (image_channel + label_channel)]
+    size = [CROP_HEIGHT, CROP_WIDTH, (image_channel + label_channel)]
     def get_patch(x): return tf.stack(
-        [tf.image.random_crop(x, size) for _ in range(num_batches)], axis=0)
+        [tf.image.random_crop(x, size) for _ in range(BATCHES)], axis=0)
     batch = get_patch(image_label)
     # split the image from the labels
     image, label = tf.split(batch, [image_channel, label_channel], axis=-1)
     return image, label
 
 
-def test_map_function(image_path, pred_path, num_splits):
+def test_map_function(image, pred_path):
     """
     Create transform function for the test set
     Args:
@@ -264,11 +285,9 @@ def test_map_function(image_path, pred_path, num_splits):
         images: transformed images
         pred_path: string path which is later used to save prediction results
     """
-    image = tf.io.read_file(image_path)
-    image = tf.image.decode_png(image)
     image = tf.div(tf.cast(image, tf.float32), 255.)
     # Split the image
-    image = tf.split(image, num_splits, axis=0)
+    image = tf.split(image, SPLITS, axis=0)
     return image, pred_path
 
 
@@ -296,5 +315,8 @@ def save_seg_maps(x, path):
     Returns:
 
     """
+    x = np.split(x, SPLITS, axis=0)
+    x = np.squeeze(np.concatenate(x, axis=3))
     x = np.reshape(x, (-1, *x.shape[2:]))
-    imsave(path, x.astype(np.uint8), check_contrast=False)
+    im = Image.fromarray(x)
+    im.save(path)
