@@ -32,12 +32,14 @@ class HRNET:
             branch_one_resnet_one, 2*self.num_kernels, self.is_train, stride=2,
             var_scope='branch_two_resnet_one')
 
-        branch_two_resnet_one_upsample = upsample(branch_two_resnet_one)
+        branch_one_upsample_shape = tf.shape(self.x)[1:3]
+        branch_two_resnet_one_upsample = upsample(
+            branch_two_resnet_one, branch_one_upsample_shape)
         branch_one_resnet_three_input = tf.add(
             branch_one_resnet_two, branch_two_resnet_one_upsample)
 
         branch_one_resnet_three = resnet_unit(
-            branch_one_resnet_three_input, 4*self.num_kernels, self.is_train,
+            branch_one_resnet_three_input, self.num_kernels, self.is_train,
             var_scope='branch_one_resnet_three')
 
         branch_two_conv_one = conv2d(
@@ -51,16 +53,17 @@ class HRNET:
             branch_two_resnet_one, branch_two_act_one)
 
         branch_two_resnet_two = resnet_unit(
-            branch_two_resnet_two_input, 4*self.num_kernels, self.is_train,
+            branch_two_resnet_two_input, 2*self.num_kernels, self.is_train,
             var_scope='branch_two_resnet_two')
 
         branch_three_resnet_one = resnet_unit(
             branch_two_resnet_two_input, 4*self.num_kernels, self.is_train, stride=2,
             var_scope='branch_three_resnet_two_input')
 
-        branch_two_resnet_two_upsample = upsample(branch_two_resnet_two)
+        branch_two_resnet_two_upsample = upsample(
+            branch_two_resnet_two, branch_one_upsample_shape)
         branch_three_resnet_one_upsample = upsample(
-            branch_three_resnet_one, size=4)
+            branch_three_resnet_one, branch_one_upsample_shape)
 
         multi_res_concat = tf.concat(
             (branch_one_resnet_three, branch_two_resnet_two_upsample, branch_three_resnet_one_upsample), axis=-1)
