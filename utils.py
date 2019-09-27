@@ -1,5 +1,7 @@
 import glob
 import tensorflow as tf
+import numpy as np
+from skimage.io import imsave
 
 
 def get_weight(shape):
@@ -283,3 +285,16 @@ def average_loss(loss):
     reset_op = tf.variables_initializer([loss_sum, num_batches])
 
     return ave_loss, update_op, reset_op
+
+
+def save_seg_maps(x, path):
+    """
+    Save segmentation maps predicted by the model using scikit image
+    Args:
+        x: predicted 4D array
+        path: save directory (string)
+    Returns:
+
+    """
+    x = np.reshape(x, (-1, *x.shape[2:]))
+    imsave(path, x.astype(np.uint8), check_contrast=False)
