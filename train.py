@@ -7,12 +7,12 @@ from utils import iterator, average_loss, test_iterator
 from skimage.io import imsave
 
 KERNEL_SIZE = 3
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 NUM_CLASSES = 2
-NUM_KERNELS = 8
+NUM_KERNELS = 32
 LR_RATE = 1e-3
 CHANNELS = 3
-SAVE_PATH = './model'
+SAVE_PATH = './HRNET_32'
 DATA_PATH = '../dataset/'
 EPOCHS = 100
 
@@ -27,6 +27,7 @@ def train():
     test_file = DATA_PATH + '/test/'
     if not os.path.isdir(test_file + 'pred'):
         os.makedirs(test_file + 'pred')
+    tf.reset_default_graph()
     with tf.name_scope('place_holders'):
         x = tf.placeholder(tf.float32, shape=(
             None, None, None, CHANNELS), name='input_image')
@@ -112,7 +113,8 @@ def train():
                 summ_writer.add_summary(summ, i)
                 print('Iteration: {} Mean IoU: {} Loss: {}'.format(
                     i, val_iou, val_loss))
-        saver.save(sess, checkpoint_dir + 'hrnet')
+            if i % 25 == 1 or i == (EPOCHS - 1):
+                saver.save(sess, checkpoint_dir + 'hrnet', global_step=i+1)
         print('Finished training.....')
         ############################################
         # GENERATE PREDICTION MAPS FOR TEST IMAGES##
@@ -121,11 +123,13 @@ def train():
         while True:
             try:
                 test_x, save_path = sess.run(test_next)
-                seg_map = sess.run(
-                    pred, feed_dict={x: test_x, is_train: False})
+                def seg_map_batch(im): return sess.run(
+                    pred, feed_dict={x: im, is_train: False})
+                seg_map = [seg_map_batch(np.expand_dims(x, axis=0))
+                           for x in test_x]
+                seg_map = np.concatenate(seg_map, axis=0)
                 # save segmentation map
-                imsave(save_path.decode('utf-8'), np.squeeze(
-                    seg_map.astype(np.uint8)), check_contrast=False)
+                save_seg_maps(np.squeeze(seg_map), save_path.decode('utf-8'))
             except tf.errors.OutOfRangeError:
                 print('Finished test evaluation')
                 break
