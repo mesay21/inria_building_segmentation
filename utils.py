@@ -166,18 +166,17 @@ def lrelu(x):
     return tf.nn.leaky_relu(x)
 
 
-def upsample(x, size=2):
+def upsample(x, size):
     """
     Create upsampling layer
     Args:
         x: input array of size [Batch, Height, Width, Channels]
+        size: the new spatail size [new_heigh, new_width]
     Returns:
-        out: bicubic upsampled fature map of size
+        out: bilinear upsampled fature map of size
             [Batch, size*Height, size*Width, Channels]
     """
-    im_size = tf.shape(x)[1:3] * \
-        tf.constant(size)  # new height and width values
-    out = tf.image.resize(x, im_size)
+    out = tf.image.resize(x, size)
     return out
 
 
@@ -192,11 +191,12 @@ def iterator(data_path, batch_size=64):
         _next: get next batch
     """
     # convert lists to string tensors
-    x_path = glob.glob(data_path + 'images/*.png')
+    x_path = glob.glob(data_path + 'images/*.tif')
     y_path = [p.replace('images', 'gt') for p in x_path]
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
     dataset = tf.data.Dataset.from_tensor_slices((x, y))
+    dataset = dataset.shuffle(1024)
 
     def read_images_labels(image_path, label_path):
         image = Image.open(image_path)
@@ -209,7 +209,6 @@ def iterator(data_path, batch_size=64):
         num_parallel_calls=4)
 
     dataset = dataset.map(map_function, num_parallel_calls=4)
-    dataset = dataset.batch(batch_size)
     iterator = tf.data.Iterator.from_structure(
         dataset.output_types, dataset.output_shapes)
     _next = iterator.get_next()
@@ -226,7 +225,7 @@ def test_iterator(data_path):
         iterator: iterator initializer
         _next: get next batch
     """
-    x_path = glob.glob(data_path + 'images/*.png')
+    x_path = glob.glob(data_path + 'images/*.tif')
     y_path = [p.replace('images', 'pred') for p in x_path]
     x = tf.constant(x_path, dtype=tf.string)
     y = tf.constant(y_path, dtype=tf.string)
@@ -264,9 +263,9 @@ def map_function(image, label):
         tf.div(label, 255), depth=2, dtype=tf.float32))
     # concatinate image  and labels to ensure matching during cropping
     image_label = tf.concat((image, label), axis=-1)
-    image_channel = image.get_shape().as_list()[-1]
-    label_channel = label.get_shape().as_list()[-1]
-    size = [CROP_HEIGHT, CROP_WIDTH, (image_channel + label_channel)]
+    image_channel = tf.shape(image)[-1]
+    label_channel = tf.shape(label)[-1]
+    size = [CROP_HEIGHT, CROP_WIDTH, tf.add(image_channel, label_channel)]
     def get_patch(x): return tf.stack(
         [tf.image.random_crop(x, size) for _ in range(BATCHES)], axis=0)
     batch = get_patch(image_label)
@@ -315,8 +314,20 @@ def save_seg_maps(x, path):
     Returns:
 
     """
-    x = np.split(x, SPLITS, axis=0)
-    x = np.squeeze(np.concatenate(x, axis=3))
     x = np.reshape(x, (-1, *x.shape[2:]))
-    im = Image.fromarray(x)
+    x = filter_noise(x)
+    im = Image.fromarray((255*x).astype(np.uint8))
     im.save(path)
+
+
+def filter_noise(binary_image):
+    """
+    Performs a binary opening operation on segmentation maps
+    The kernel is a 3x3 rectangular matrix.
+    Args:
+        binary_image: binary image [Height, Width]
+    Returns:
+        image: input image after opeining operation
+    """
+    kernel = np.ones(shape=(3, 3), dtype=np.int)
+    return binary_opening(binary_image, selem=kernel)
